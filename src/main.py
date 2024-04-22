@@ -1,5 +1,7 @@
 import argparse
 import json
+from VLIW470 import VLIW470
+
 
 
 if __name__ == "__main__":
@@ -18,6 +20,9 @@ def main(input_path, simple_output_path, pip_output_path):
     with open(input_path, 'r') as f:
         insts = json.load(f)
 
+    VLIW470(insts)
+
+
     
 
     with open(simple_output_path, 'w') as f:
@@ -25,4 +30,3 @@ def main(input_path, simple_output_path, pip_output_path):
 
     with open(pip_output_path, 'w') as f:
         json.dump(pip_data, f)
-
