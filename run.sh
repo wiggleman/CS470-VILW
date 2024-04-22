@@ -12,4 +12,4 @@ simple_output_path=$2
 pip_output_path=$3
 
 # Run the Python script with the arguments
-python3 scheduler.py $input_path $simple_output_path $pip_output_path
+python3 src/main.py $input_path $simple_output_path $pip_output_path

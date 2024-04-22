@@ -1,20 +1,8 @@
-from collections import namedtuple
 from dataclasses import dataclass
-from enum        import Enum
 from typing      import NamedTuple
 
+from type import RegType, Reg, Instruction
 from DependencyTable import DependencyTable
-
-RegType = Enum('RegType', ['GENERAL', 'PREDICATE', 'LC', 'EC', 'RRB'])
-Reg = namedtuple('Reg', ['type', 'idx'])
-
-@dataclass
-class Instruction:
-    opcode: str
-    rd : NamedTuple
-    rs1: NamedTuple
-    rs2: NamedTuple
-    imm: int
 
 class VLIW470:
     @dataclass
@@ -32,6 +20,7 @@ class VLIW470:
     depTable: DependencyTable
 
     def __init__(self, insts: list[str]) -> None:
+        self.iCache = []
         for inst in insts:
             self.iCache.append(self.decode(inst))
         self.depTable = DependencyTable(self.iCache)
@@ -100,4 +89,4 @@ class VLIW470:
                                    rd = self.parseReg(rd),
                                    rs1 = None,
                                    rs2 = None,
-                                   imm = int(rs1))
+                                   imm = int(rs1, 0))
