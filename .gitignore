@@ -3,4 +3,5 @@ user_output.json
 runone.sh
 submission.zip
 *.pdf
+depTable.csv
 __pycache__/

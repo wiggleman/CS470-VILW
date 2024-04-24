@@ -4,13 +4,21 @@ from typing      import NamedTuple
 from collections import namedtuple
 
 from type import RegType, Reg, Instruction
+import csv
 
-Dep = namedtuple('Dep', ['consumer_reg', 'producer_id', 'producer_id_interloop'])
+class Dep(namedtuple('Dep', ['consumer_reg', 'producer_id', 'producer_id_interloop'])):
+    
+    def __str__(self):
+        if (self.producer_id_interloop is not None):
+            return f"{self.consumer_reg} <- {self.producer_id} or _{self.producer_id_interloop}"
+        else:
+            return f"{self.consumer_reg} <- {self.producer_id}"
+    
 
 @dataclass
 class DependencyTableEntry:
     #pc: int
-    id: str
+    #id: int # simply the index of the instruction in iCache
     opcode: str
     dest: NamedTuple # produced register
     # consumed registers
@@ -28,8 +36,8 @@ class DependencyTable:
     
     def __init__(self, insts: list[Instruction]):
         self.bb0 = slice(0, len(insts))
-        self.bb1 = None
-        self.bb2 = None
+        self.bb1 = slice(len(insts), len(insts))
+        self.bb2 = slice(len(insts), len(insts))
         self.table = []
 
         self.delineate(insts)
@@ -62,22 +70,21 @@ class DependencyTable:
         freshIdentifier = FreshIdGenerator()
         # initialize table with empty dependency columns
         for inst in insts:
-            self.table.append(DependencyTableEntry(freshIdentifier(), 
-                                                   inst.opcode,
+            self.table.append(DependencyTableEntry(inst.opcode,
                                                    inst.rd,
                                                    [],[],[],[] ))
 
         # helper function to find dependencies of a register in a certain range
-        def findDependencies(reg: NamedTuple, range: slice) -> list[DependencyTableEntry]:
+        def findDependencies(reg: NamedTuple, range: slice):
             ''' find dependencies of a register '''
-            producer = next((entry for entry in reversed(self.table[range]) if entry.dest == reg), None)
-            return producer.id if producer is not None else None
+            return next((i for i, entry in reversed(list(enumerate(self.table))[range]) if entry.dest == reg), None)
+
 
         # only local dependencies in bb0
         for i in range(10**10)[self.bb0]:
             inst = insts[i]
             entry = self.table[i]
-            for rs in [r for r in [inst.rs1, inst.rs2] if r is not None]:
+            for rs in set(filter(None, [inst.rs1, inst.rs2])):
                 # search ahead of the current instruction for local dependency
                 if (p := findDependencies(rs, slice(0, i))) is not None:
                     entry.localDeps.append(Dep(rs, p, None))
@@ -88,13 +95,13 @@ class DependencyTable:
         for i in range(10**10)[self.bb1]:
             inst = insts[i]
             entry = self.table[i]
-            for rs in [r for r in [inst.rs1, inst.rs2] if r is not None]:
+            for rs in set(filter(None, [inst.rs1, inst.rs2])):
                 if (pbb1Before := findDependencies(rs, slice(bb1Start, i))) is not None:
                     # if there exists a producer ahead of current instruction in bb1, it is a local dependency
                     entry.localDeps.append(Dep(rs, pbb1Before, None))
                 elif (pbb1After := findDependencies(rs, slice(i, bb2Start))) is not None:
                     # if there's no producer ahead, but there's one following, it is a inter-loop dependency, note that it's the only case with 2 producers
-                    entry.interLoopDeps.append(Dep(rs, pbb1After, findDependencies(rs, self.bb0)))
+                    entry.interLoopDeps.append(Dep(rs, findDependencies(rs, self.bb0), pbb1After))
                 elif (pbb0 := findDependencies(rs, self.bb0)) is not None:
                     # if there's no producer in bb1, but there's one in bb0, it is a loop-invariant dependency
                     entry.loopInvariantDeps.append(Dep(rs, pbb0, None))
@@ -103,7 +110,7 @@ class DependencyTable:
         for i in range(10**10)[self.bb2]:
             inst = insts[i]
             entry = self.table[i]
-            for rs in [r for r in [inst.rs1, inst.rs2] if r is not None]:
+            for rs in set(filter(None, [inst.rs1, inst.rs2])):
                 if (pbb2 := findDependencies(rs, slice(bb2Start, i))) is not None:
                     # if there exists a producer ahead of current instruction in bb2, it is a local dependency
                     entry.localDeps.append(Dep(rs, pbb2, None))
@@ -114,7 +121,22 @@ class DependencyTable:
                     # if there's no producer in neither bb2 nor bb1, but there's one in bb0, it is a loop-invariant dependency
                     entry.loopInvariantDeps.append(Dep(rs, pbb0, None))
 
-    def __str__(self) -> str:
-        ''' pretty print dependency table '''
-        return '\n'.join(str(entry) for entry in self.table)
+
+    def to_csv(self, filename: str) -> None:
+        ''' output dependency table to a csv file '''
+        with open(filename, 'w', newline='') as csvfile:
+            fieldnames = ['id', 'opcode', 'dest', 'localDeps', 'interLoopDeps', 'loopInvariantDeps', 'postLoopDeps']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            writer.writeheader()
+            for i, entry in enumerate(self.table):
+                writer.writerow({
+                    'id': i,
+                    'opcode': entry.opcode,
+                    'dest': entry.dest,
+                    'localDeps': [str(dep) for dep in entry.localDeps],
+                    'interLoopDeps': [str(dep) for dep in entry.interLoopDeps],
+                    'loopInvariantDeps': [str(dep) for dep in entry.loopInvariantDeps],
+                    'postLoopDeps': [str(dep) for dep in entry.postLoopDeps]
+                })
 

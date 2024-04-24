@@ -5,15 +5,18 @@ from typing      import NamedTuple
 
 
 RegType = Enum('RegType', ['GENERAL', 'PREDICATE', 'LC', 'EC', 'RRB'])
-Reg = namedtuple('Reg', ['type', 'idx'])
 
-class Reg(NamedTuple):
-    
-    type: int
-    idx: str
-    
+InstClass = Enum('InstClass', ['ALU', 'Mulu', 'Mem', 'Branch'])
+
+class Reg(namedtuple('Reg', ['type', 'idx'])):
+
     def __str__(self):
-        return "LC" if RegType.LC else str(self.type) + str(self.idx)
+        if self.type == RegType.GENERAL:
+            return "x" + str(self.idx)
+        elif self.type == RegType.PREDICATE:
+            return "p" + str(self.idx)
+        else:
+            return self.type.name
 
 @dataclass
 class Instruction:
@@ -22,3 +25,4 @@ class Instruction:
     rs1: NamedTuple
     rs2: NamedTuple
     imm: int
+    class_ : InstClass

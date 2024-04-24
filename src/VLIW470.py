@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from typing      import NamedTuple
 
-from type import RegType, Reg, Instruction
+from type import RegType, Reg, Instruction, InstClass
 from DependencyTable import DependencyTable
 
 class VLIW470:
@@ -38,21 +37,30 @@ class VLIW470:
         ''' decode an instruction '''
         opcode, regs = inst.split(' ', 1)
         if opcode == 'add' or \
-           opcode == 'sub' or \
-           opcode == 'mulu':
+           opcode == 'sub':
            rd, rs1, rs2 = map(lambda x : self.parseReg(x.strip()), regs.split(','))
            return Instruction(opcode = opcode,
                               rd = rd,
                               rs1 = rs1,
                               rs2 = rs2,
-                              imm = None) 
+                              imm = None,
+                              class_ = InstClass.ALU) 
+        elif opcode == 'mulu':
+           rd, rs1, rs2 = map(lambda x : self.parseReg(x.strip()), regs.split(','))
+           return Instruction(opcode = opcode,
+                              rd = rd,
+                              rs1 = rs1,
+                              rs2 = rs2,
+                              imm = None,
+                              class_ = InstClass.Mulu) 
         elif opcode == 'addi':
             rd, rs1, imm = map(lambda x : x.strip(), regs.split(','))
             return Instruction(opcode = 'addi',
                                rd = self.parseReg(rd),
                                rs1 = self.parseReg(rs1),
                                rs2 = None,
-                               imm = int(imm))
+                               imm = int(imm),
+                               class_ = InstClass.ALU)
         elif opcode == 'ld':
             rd, addr = regs.split(',', 1)
             offset, base = addr.split('(', 1)
@@ -60,7 +68,8 @@ class VLIW470:
                                rd = self.parseReg(rd.strip()),
                                rs1 = self.parseReg(base.strip()[ :-1]), # get rid of ')'
                                rs2 = None,
-                               imm = int(offset, 0)) # Offset may be a hex.
+                               imm = int(offset, 0),
+                               class_ = InstClass.Mem) # Offset may be a hex.
         elif opcode == 'st':
             # semantics of `st rs2, offset(rs1)`: MEM[rs1 + offset] ← rs2
             content, addr = regs.split(',', 1)
@@ -69,13 +78,15 @@ class VLIW470:
                                rd = None,
                                rs1 = self.parseReg(base.strip()[ :-1]), # get rid of ')'
                                rs2 = self.parseReg(content.strip()),
-                               imm = int(offset, 0)) # Offset may be a hex.
+                               imm = int(offset, 0),
+                               class_ = InstClass.Mem) # Offset may be a hex.
         elif opcode == 'loop':
             return Instruction(opcode = 'loop',
                                rd = None,
                                rs1 = None,
                                rs2 = None,
-                               imm = int(regs.strip())) # jump address
+                               imm = int(regs.strip()),
+                               class_ = InstClass.Branch) # jump address
         elif opcode == 'mov':
             rd, rs1 = map(lambda x : x.strip(), regs.split(','))
             if rs1[0] == 'x' or rs1 == 'LC': # `mov rd, rs1`
@@ -83,10 +94,12 @@ class VLIW470:
                                    rd = self.parseReg(rd),
                                    rs1 = self.parseReg(rs1),
                                    rs2 = None,
-                                   imm = None)
+                                   imm = None,
+                                   class_ = InstClass.ALU)
             else: # `mov rd, imm`
                 return Instruction(opcode = 'mov',
                                    rd = self.parseReg(rd),
                                    rs1 = None,
                                    rs2 = None,
-                                   imm = int(rs1, 0))
+                                   imm = int(rs1, 0),
+                                   class_ = InstClass.ALU)

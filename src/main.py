@@ -1,6 +1,7 @@
 import argparse
 import json
 from VLIW470 import VLIW470
+import os
 
 
 def main(input_path, simple_output_path, pip_output_path):
@@ -8,7 +9,9 @@ def main(input_path, simple_output_path, pip_output_path):
         insts = json.load(f)
 
     compiler = VLIW470(insts)
-    print(compiler.depTable)
+
+    dep_table_path = os.path.join(os.path.dirname(simple_output_path), "depTable.csv")
+    compiler.depTable.to_csv(dep_table_path)
 
 if __name__ == "__main__":
 
