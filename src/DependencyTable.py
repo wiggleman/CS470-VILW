@@ -26,6 +26,7 @@ class DependencyTableEntry:
     interLoopDeps    : list[NamedTuple]
     loopInvariantDeps: list[NamedTuple]
     postLoopDeps     : list[NamedTuple]
+    renamedDest: NamedTuple # unused in this stage, will be used later in scheduling
 
 
 class DependencyTable:
@@ -72,7 +73,7 @@ class DependencyTable:
         for inst in insts:
             self.table.append(DependencyTableEntry(inst.opcode,
                                                    inst.rd,
-                                                   [],[],[],[] ))
+                                                   [],[],[],[], None ))
 
         # helper function to find dependencies of a register in a certain range
         def findDependencies(reg: NamedTuple, range: slice):

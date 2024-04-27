@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from type import RegType, Reg, Instruction, InstClass
 from DependencyTable import DependencyTable
+from SimpleScheduler import SimpleScheduler
 
 class VLIW470:
     @dataclass
@@ -17,12 +18,14 @@ class VLIW470:
     lc : int # loop   count register
     ec : int # epilog count register
     depTable: DependencyTable
+    SimpleScheduler = SimpleScheduler
 
     def __init__(self, insts: list[str]) -> None:
         self.iCache = []
         for inst in insts:
             self.iCache.append(self.decode(inst))
         self.depTable = DependencyTable(self.iCache)
+        self.SimpleScheduler = SimpleScheduler(self)
     
     def parseReg(self, reg: str) -> Reg:
         ''' parse a register '''

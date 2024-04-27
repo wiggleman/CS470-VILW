@@ -5,3 +5,5 @@ submission.zip
 *.pdf
 depTable.csv
 __pycache__/
+simple.csv
+simple.json

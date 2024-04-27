@@ -11,7 +11,10 @@ def main(input_path, simple_output_path, pip_output_path):
     compiler = VLIW470(insts)
 
     dep_table_path = os.path.join(os.path.dirname(simple_output_path), "depTable.csv")
+    simple_csv_path = os.path.join(os.path.dirname(simple_output_path), "simple.csv")
     compiler.depTable.to_csv(dep_table_path)
+    compiler.SimpleScheduler.to_json(simple_output_path)
+    compiler.SimpleScheduler.to_csv(simple_csv_path)
 
 if __name__ == "__main__":
 
