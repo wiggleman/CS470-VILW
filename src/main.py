@@ -12,9 +12,11 @@ def main(input_path, simple_output_path, pip_output_path):
 
     dep_table_path = os.path.join(os.path.dirname(simple_output_path), "depTable.csv")
     simple_csv_path = os.path.join(os.path.dirname(simple_output_path), "simple.csv")
-    compiler.depTable.to_csv(dep_table_path)
-    compiler.SimpleScheduler.to_json(simple_output_path)
-    compiler.SimpleScheduler.to_csv(simple_csv_path)
+    pip_csv_path = os.path.join(os.path.dirname(pip_output_path), "pipeline.csv")
+    #compiler.depTable.to_csv(dep_table_path)
+    compiler.simpleScheduler.to_json(simple_output_path)
+    #compiler.simpleScheduler.to_csv(simple_csv_path)
+    compiler.pipelineScheduler.to_csv(pip_csv_path)
 
 if __name__ == "__main__":
 

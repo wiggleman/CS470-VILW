@@ -1,6 +1,5 @@
 
 from dataclasses import dataclass
-from typing      import NamedTuple
 from collections import namedtuple
 
 from type import RegType, Reg, Instruction
@@ -20,13 +19,13 @@ class DependencyTableEntry:
     #pc: int
     #id: int # simply the index of the instruction in iCache
     opcode: str
-    dest: NamedTuple # produced register
+    dest: Reg # produced register
     # consumed registers
-    localDeps        : list[NamedTuple]
-    interLoopDeps    : list[NamedTuple]
-    loopInvariantDeps: list[NamedTuple]
-    postLoopDeps     : list[NamedTuple]
-    renamedDest: NamedTuple # unused in this stage, will be used later in scheduling
+    localDeps        : list[Dep]
+    interLoopDeps    : list[Dep]
+    loopInvariantDeps: list[Dep]
+    postLoopDeps     : list[Dep]
+    renamedDest      : Reg # unused in this stage, will be used later in scheduling
 
 
 class DependencyTable:
@@ -56,19 +55,19 @@ class DependencyTable:
     def analyze(self, insts) -> None:
         ''' analyze dependencies '''
 
-        class FreshIdGenerator:
-            ''' fresh identifier generator '''
-            cnt: int = 0
-            MAX: int = 9999
+        # class FreshIdGenerator:
+        #     ''' fresh identifier generator '''
+        #     cnt: int = 0
+        #     MAX: int = 9999
             
-            def __call__(self) -> str:
-                assert self.cnt < self.MAX, 'max number of identifier reached'
+        #     def __call__(self) -> str:
+        #         assert self.cnt < self.MAX, 'max number of identifier reached'
 
-                token = str(self.cnt).zfill(4)
-                self.cnt += 1
-                return token
+        #         token = str(self.cnt).zfill(4)
+        #         self.cnt += 1
+        #         return token
             
-        freshIdentifier = FreshIdGenerator()
+        # freshIdentifier = FreshIdGenerator()
         # initialize table with empty dependency columns
         for inst in insts:
             self.table.append(DependencyTableEntry(inst.opcode,
@@ -76,7 +75,7 @@ class DependencyTable:
                                                    [],[],[],[], None ))
 
         # helper function to find dependencies of a register in a certain range
-        def findDependencies(reg: NamedTuple, range: slice):
+        def findDependencies(reg: Reg, range: slice):
             ''' find dependencies of a register '''
             return next((i for i, entry in reversed(list(enumerate(self.table))[range]) if entry.dest == reg), None)
 
@@ -140,4 +139,3 @@ class DependencyTable:
                     'loopInvariantDeps': [str(dep) for dep in entry.loopInvariantDeps],
                     'postLoopDeps': [str(dep) for dep in entry.postLoopDeps]
                 })
-
