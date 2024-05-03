@@ -1,9 +1,11 @@
 .DS_Store
-user_output.json
-runone.sh
-submission.zip
 *.pdf
-depTable.csv
-__pycache__/
-simple.csv
+# output
 simple.json
+pip.json
+user_output.json
+*.csv
+
+*.zip
+# Python
+__pycache__/

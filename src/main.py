@@ -16,7 +16,9 @@ def main(input_path, simple_output_path, pip_output_path):
     #compiler.depTable.to_csv(dep_table_path)
     compiler.simpleScheduler.to_json(simple_output_path)
     #compiler.simpleScheduler.to_csv(simple_csv_path)
-    compiler.pipelineScheduler.to_csv(pip_csv_path)
+    compiler.pipelineScheduler.to_json(pip_output_path)
+    #compiler.pipelineScheduler.to_csv(pip_csv_path)
+    #compiler.depTable.to_csv(dep_table_path)
 
 if __name__ == "__main__":
 

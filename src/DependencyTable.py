@@ -6,13 +6,14 @@ from type import RegType, Reg, Instruction
 import csv
 
 class Dep(namedtuple('Dep', ['consumer_reg', 'producer_id', 'producer_id_interloop'])):
-    
     def __str__(self):
         if (self.producer_id_interloop is not None):
             return f"{self.consumer_reg} <- {self.producer_id} or _{self.producer_id_interloop}"
         else:
             return f"{self.consumer_reg} <- {self.producer_id}"
     
+    def reg(self):
+        return self.consumer_reg
 
 @dataclass
 class DependencyTableEntry:
@@ -25,7 +26,8 @@ class DependencyTableEntry:
     interLoopDeps    : list[Dep]
     loopInvariantDeps: list[Dep]
     postLoopDeps     : list[Dep]
-    renamedDest      : Reg # unused in this stage, will be used later in scheduling
+    stage            : int = None # used only in pipeline scheduling
+    renamedDest      : Reg = None
 
 
 class DependencyTable:
@@ -72,7 +74,7 @@ class DependencyTable:
         for inst in insts:
             self.table.append(DependencyTableEntry(inst.opcode,
                                                    inst.rd,
-                                                   [],[],[],[], None ))
+                                                   [],[],[],[]))
 
         # helper function to find dependencies of a register in a certain range
         def findDependencies(reg: Reg, range: slice):
@@ -125,7 +127,7 @@ class DependencyTable:
     def to_csv(self, filename: str) -> None:
         ''' output dependency table to a csv file '''
         with open(filename, 'w', newline='') as csvfile:
-            fieldnames = ['id', 'opcode', 'dest', 'localDeps', 'interLoopDeps', 'loopInvariantDeps', 'postLoopDeps']
+            fieldnames = ['id', 'opcode', 'dest', 'localDeps', 'interLoopDeps', 'loopInvariantDeps', 'postLoopDeps','stage']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             writer.writeheader()
@@ -137,5 +139,6 @@ class DependencyTable:
                     'localDeps': [str(dep) for dep in entry.localDeps],
                     'interLoopDeps': [str(dep) for dep in entry.interLoopDeps],
                     'loopInvariantDeps': [str(dep) for dep in entry.loopInvariantDeps],
-                    'postLoopDeps': [str(dep) for dep in entry.postLoopDeps]
+                    'postLoopDeps': [str(dep) for dep in entry.postLoopDeps],
+                    'stage' : entry.stage,
                 })

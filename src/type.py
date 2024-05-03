@@ -9,8 +9,10 @@ RegType = Enum('RegType', ['GENERAL', 'PREDICATE', 'LC', 'EC', 'RRB'])
 
 InstClass = Enum('InstClass', ['ALU', 'Mulu', 'Mem', 'Branch'])
 
-class Reg(namedtuple('Reg', ['type', 'idx'])):
+#class RIdx(int):
+#    pass
 
+class Reg(namedtuple('Reg', ['type', 'idx'])):
     def __str__(self):
         if self.type == RegType.GENERAL:
             return "x" + str(self.idx)
@@ -18,6 +20,21 @@ class Reg(namedtuple('Reg', ['type', 'idx'])):
             return "p" + str(self.idx)
         else:
             return self.type.name
+
+class RotReg(Reg):
+    def __init__(self, _type: RegType, idx: int, iterOffset : int = 0,
+                                                 stageOffset: int = 0):
+        super().__init__()
+        self.iterOffset  = iterOffset
+        self.stageOffset = stageOffset
+    
+    def __str__(self):
+        if self.type == RegType.GENERAL:
+            return f'x{self.idx + self.iterOffset + self.stageOffset}'
+        elif self.type == RegType.PREDICATE:
+            return f'p{self.idx + self.iterOffset + self.stageOffset}'
+        else:
+            raise ValueError(f'rotation register cannot be LC or EC')
 
 @dataclass
 class Instruction:
@@ -138,6 +155,35 @@ class Bundle:
                 lst.append('nop')
         assert i == len(self.insts)
         return lst
+
+    def to_list_pip(self, depTable, # `list[DependencyTableEntry]`
+                          added: int) -> list:
+        lst = []
+        format = [InstClass.ALU, InstClass.ALU, InstClass.Mulu, InstClass.Mem, InstClass.Branch]
+        i = 0
+        for cls in format:
+            if i < len(self.template) and cls == self.template[i]:
+                try:
+                    if self.insts[i].opcode == 'loop':
+                        lst.append(f" loop.pip {self.insts[i].imm + added}")
+                    elif self.insts[i].id < 0:
+                        if self.insts[i].rd.type == RegType.PREDICATE:
+                            lst.append(f" mov {self.insts[i].rd}, true")
+                        else:
+                            lst.append(str(self.insts[i]))
+                    elif (s := depTable[self.insts[i].id].stage) is not None:
+                        lst.append(f" (p{32 + s}) " + str(self.insts[i]))
+                    else:
+                        lst.append(str(self.insts[i]))
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+                    print(self.insts[i])
+                    sys.exit()
+                i += 1
+            else:
+                lst.append('nop')
+        assert i == len(self.insts)
+        return lst
     
 class AutoExtendList(list):
     def __getitem__(self, index: Union[int, slice]):    
@@ -146,6 +192,8 @@ class AutoExtendList(list):
                 self.extend(Bundle() for _ in range(index + 1 - len(self)))
             return super().__getitem__(index)
         elif isinstance(index, slice):
+            if index.stop >= len(self):
+                self.extend(Bundle() for _ in range(index.stop + 1 - len(self)))
             return AutoExtendList(super().__getitem__(index))
         else:
             raise TypeError(f'invalid index type: {type(index)}')

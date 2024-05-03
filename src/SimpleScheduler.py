@@ -109,8 +109,10 @@ class SimpleScheduler:
         ''' Step 2.2: link the operands to the renamed registers'''
         for bundle in self.schedule:
             for inst in bundle.insts:
-                deps = depTable[inst.id].localDeps + depTable[inst.id].interLoopDeps + depTable[inst.id].loopInvariantDeps + depTable[inst.id].postLoopDeps
- 
+                deps = depTable[inst.id].localDeps         \
+                     + depTable[inst.id].interLoopDeps     \
+                     + depTable[inst.id].loopInvariantDeps \
+                     + depTable[inst.id].postLoopDeps
                 if inst.rs1 is not None:
                     prodId = next((dep.producer_id for dep in deps if dep.consumer_reg == inst.rs1), None)
                     if prodId is None:
