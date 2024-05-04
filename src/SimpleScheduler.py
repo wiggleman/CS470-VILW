@@ -1,119 +1,8 @@
-from type import RegType, Reg, Instruction, InstClass
-from dataclasses import dataclass, field
+from type import RegType, Reg, Instruction, InstClass, _Instruction, Bundle, AutoExtendList
 from itertools import islice
 import json
 import csv
-import sys
 
-
-@dataclass # mutable, since the renameing is done in a later stage
-class _Instruction:
-    opcode: str
-    id: int  # its index in depTable and iCache
-    rd: Reg  # destination register after renaming
-    rs1: Reg  # source register after renaming
-    rs2: Reg
-    imm: int
-
-    def __init__(self, opcode: str = None, id: int = None, rd: Reg = None, rs1: Reg = None, rs2: Reg = None, imm: int = None):
-        self.opcode = opcode
-        self.id = id
-        self.rd = rd
-        self.rs1 = rs1
-        self.rs2 = rs2
-        self.imm = imm
-
-    @classmethod
-    def from_instruction(cls, instruction: Instruction, id: int):
-        return cls(instruction.opcode, id, instruction.rd, instruction.rs1, instruction.rs2, instruction.imm)
-
-    def __str__(self):
-        # if (self.opcode == 'mov'):
-        #     print(self.rd)
-        if self.opcode == 'add' or \
-           self.opcode == 'sub' or \
-           self.opcode == 'mulu' :
-            return f" {self.opcode} {self.rd}, {self.rs1}, {self.rs2}"
-        elif self.opcode == 'addi':
-            return f" addi {self.rd}, {self.rs1}, {self.imm}"
-        elif self.opcode == 'mov':
-            if self.rs1 is None:
-                return f" mov {self.rd}, {self.imm}"
-            else:
-                return f" mov {self.rd}, {self.rs1}"
-        elif self.opcode == 'ld':
-            return f" ld {self.rd}, {self.imm}({self.rs1})"
-        elif self.opcode == 'st':
-            return f" st {self.rs2}, {self.imm}({self.rs1})"
-        elif self.opcode == 'loop':
-            return f" loop {self.imm}"
-
-
-@dataclass
-class Bundle:
-
-    insts: list[_Instruction] = field(default_factory=list)
-    template: list[InstClass] = field(default_factory=list)
-
-    def insert(self, inst: _Instruction, class_: InstClass):
-        if class_ == InstClass.ALU:
-            if self.template.count(InstClass.ALU) < 2:
-                self.insts.append(inst)
-                self.template.append(class_)
-                return True
-            else:
-                return False
-        else:
-            if class_ not in self.template:
-                self.insts.append(inst)
-                self.template.append(class_)
-                return True
-            else:
-                return False
-    def canInsert(self, class_: InstClass):
-        if class_ == InstClass.ALU:
-            return self.template.count(InstClass.ALU) < 2
-        else:
-            return class_ not in self.template
-    # make both insts and template appear in the following sequence: ALU1, ALU2, Mulu, Mem, Branch
-    def sort(self):
-        if len(self.insts) <= 1:
-            return        
-        zipped = zip(self.insts, self.template)
-        priority = {InstClass.ALU: 0, InstClass.Mulu: 1, InstClass.Mem: 2, InstClass.Branch: 3}
-        zipped = sorted(zipped, key=lambda x: priority[x[1]])
-        self.insts, self.template = map(list, zip(*zipped))
-    # convert the bundle to a list of strings, in the order of the execution unit, with 'nop' added
-    # MUST BE CALLED AFTER sort()!!!
-    def to_list(self):
-        lst = []
-        format = [InstClass.ALU, InstClass.ALU, InstClass.Mulu, InstClass.Mem, InstClass.Branch]
-        i = 0
-        for cls in format:
-            if i < len(self.template) and cls == self.template[i]:
-                #lst.append(str(self.insts[i].id) + str(self.insts[i]))
-                try:
-                    lst.append(str(self.insts[i].id) + str(self.insts[i]))
-                except Exception as e:
-                    print(f"An error occurred: {e}")
-                    print(self.insts[i].opcode)
-                    sys.exit()
-                i += 1
-            else:
-                lst.append('nop')
-        assert i == len(self.insts)
-        return lst
-    
-class AutoExtendList(list):
-    def __getitem__(self, index):
-        if index >= len(self):
-            self.extend(Bundle() for _ in range(index + 1 - len(self)))
-        return super().__getitem__(index)
-
-    def __setitem__(self, index, value):
-        if index >= len(self):
-            self.extend(Bundle() for _ in range(index + 1 - len(self)))
-        super().__setitem__(index, value)
 
 class SimpleScheduler:
 
@@ -135,7 +24,8 @@ class SimpleScheduler:
     def to_json(self, output_path):
         self.sort()
         with open(output_path, 'w') as f:
-            json.dump([bundle.to_list() for bundle in self.schedule], f)
+            json.dump([bundle.to_list() for bundle in self.schedule], f,
+                      indent=4)
     def to_csv(self, output_path):
         self.sort()
         with open(output_path, 'w') as f:
@@ -155,14 +45,16 @@ class SimpleScheduler:
         depTable = self.p.depTable.table
 
         def schedule_single_bb(range: slice, prev_bb_finished_cycle: int):
+            ''' schedule a single basic block '''
             curr_bb_finished_cycle = prev_bb_finished_cycle
             for i, inst in list(enumerate(iCache))[range]:
                 deps = depTable[i].localDeps + depTable[i].interLoopDeps + depTable[i].loopInvariantDeps + depTable[i].postLoopDeps
-                earliest_cycle = max((finished_cycle[dep.producer_id] for dep in deps if dep.producer_id is not None), default=prev_bb_finished_cycle)
+                earliest_cycle = max((finished_cycle[dep.producer_id] for dep in deps if dep.producer_id is not None),
+                                     default=prev_bb_finished_cycle)
                 if earliest_cycle < prev_bb_finished_cycle:
                     earliest_cycle = prev_bb_finished_cycle
                 _inst = _Instruction.from_instruction(inst,i)
-                while (self.schedule[earliest_cycle].insert(_inst, inst.class_) == False):
+                while not self.schedule[earliest_cycle].insert(_inst, inst.class_):
                     earliest_cycle += 1
                 inst_finished_cycle = earliest_cycle + 1 if inst.opcode != 'mulu' else earliest_cycle + 3
                 finished_cycle[i] = inst_finished_cycle
@@ -192,7 +84,7 @@ class SimpleScheduler:
                         if diff > max_diff:
                             max_diff = diff
             # we need to delay the loop instruction by max_diff cycles
-            for i in range(max_diff):
+            for _ in range(max_diff):
                 self.schedule.insert(self.bb1_finished_cycle, Bundle())
                 self.bb1_finished_cycle += 1
                 self.bb2_finished_cycle += 1
@@ -210,25 +102,37 @@ class SimpleScheduler:
         nullReg = Reg(RegType.GENERAL, -1)
         for bundle in self.schedule:
             for inst in bundle.insts:
-                if inst.rd is not None:
+                if (inst.rd is not None) and inst.rd.type == RegType.GENERAL:
                     inst.rd = freshReg()
                     depTable[inst.id].renamedDest = inst.rd
 
         ''' Step 2.2: link the operands to the renamed registers'''
         for bundle in self.schedule:
             for inst in bundle.insts:
-                deps = depTable[inst.id].localDeps + depTable[inst.id].interLoopDeps + depTable[inst.id].loopInvariantDeps + depTable[inst.id].postLoopDeps
- 
+                deps = depTable[inst.id].localDeps         \
+                     + depTable[inst.id].interLoopDeps     \
+                     + depTable[inst.id].loopInvariantDeps \
+                     + depTable[inst.id].postLoopDeps
                 if inst.rs1 is not None:
                     prodId = next((dep.producer_id for dep in deps if dep.consumer_reg == inst.rs1), None)
                     if prodId is None:
-                        inst.rs1 = nullReg
+                        # check if it has a interloop dependency
+                        prodId = next((dep.producer_id_interloop for dep in depTable[inst.id].interLoopDeps if dep.consumer_reg == inst.rs1), None)
+                        if prodId is None:
+                            inst.rs1 = nullReg
+                        else:
+                            inst.rs1 = depTable[prodId].renamedDest
                     else:
                         inst.rs1 = depTable[prodId].renamedDest
                 if inst.rs2 is not None:
                     prodId = next((dep.producer_id for dep in deps if dep.consumer_reg == inst.rs2), None)
                     if prodId is None:
-                        inst.rs2 = nullReg
+                        # check if it has a interloop dependency
+                        prodId = next((dep.producer_id_interloop for dep in depTable[inst.id].interLoopDeps if dep.consumer_reg == inst.rs2), None)
+                        if prodId is None:
+                            inst.rs2 = nullReg
+                        else:
+                            inst.rs2 = depTable[prodId].renamedDest
                     else:
                         inst.rs2 = depTable[prodId].renamedDest
 
@@ -240,6 +144,8 @@ class SimpleScheduler:
             movFinishedCycle = self.bb1_finished_cycle
             oldBb1FinishedCycle = self.bb1_finished_cycle # this is the starting point of all added mov instruction
             for dep in interLoopDeps:
+                if dep.producer_id is None:
+                    continue
                 moveInst = _Instruction(id = -1, opcode = "mov", 
                                         rd = depTable[dep.producer_id].renamedDest, 
                                         rs1 = depTable[dep.producer_id_interloop].renamedDest)
@@ -258,6 +164,15 @@ class SimpleScheduler:
             loop_inst = _Instruction.from_instruction(self.p.iCache[bb1.stop - 1], bb1.stop - 1)
             loop_inst.imm = self.bb0_finished_cycle
             self.schedule[self.bb1_finished_cycle - 1].insert(loop_inst, InstClass.Branch) # this is guaranteed to return true
+
+        ''' Step 2.4: rename all null register '''
+
+        for bundle in self.schedule:
+            for inst in bundle.insts:
+                if inst.rs1 == nullReg:
+                    inst.rs1 = freshReg()
+                if inst.rs2 == nullReg:
+                    inst.rs2 = freshReg()
          
 
                         

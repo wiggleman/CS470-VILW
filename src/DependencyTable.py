@@ -1,32 +1,33 @@
 
 from dataclasses import dataclass
-from typing      import NamedTuple
 from collections import namedtuple
 
 from type import RegType, Reg, Instruction
 import csv
 
 class Dep(namedtuple('Dep', ['consumer_reg', 'producer_id', 'producer_id_interloop'])):
-    
     def __str__(self):
         if (self.producer_id_interloop is not None):
             return f"{self.consumer_reg} <- {self.producer_id} or _{self.producer_id_interloop}"
         else:
             return f"{self.consumer_reg} <- {self.producer_id}"
     
+    def reg(self):
+        return self.consumer_reg
 
 @dataclass
 class DependencyTableEntry:
     #pc: int
     #id: int # simply the index of the instruction in iCache
     opcode: str
-    dest: NamedTuple # produced register
+    dest: Reg # produced register
     # consumed registers
-    localDeps        : list[NamedTuple]
-    interLoopDeps    : list[NamedTuple]
-    loopInvariantDeps: list[NamedTuple]
-    postLoopDeps     : list[NamedTuple]
-    renamedDest: NamedTuple # unused in this stage, will be used later in scheduling
+    localDeps        : list[Dep]
+    interLoopDeps    : list[Dep]
+    loopInvariantDeps: list[Dep]
+    postLoopDeps     : list[Dep]
+    stage            : int = None # used only in pipeline scheduling
+    renamedDest      : Reg = None
 
 
 class DependencyTable:
@@ -56,27 +57,27 @@ class DependencyTable:
     def analyze(self, insts) -> None:
         ''' analyze dependencies '''
 
-        class FreshIdGenerator:
-            ''' fresh identifier generator '''
-            cnt: int = 0
-            MAX: int = 9999
+        # class FreshIdGenerator:
+        #     ''' fresh identifier generator '''
+        #     cnt: int = 0
+        #     MAX: int = 9999
             
-            def __call__(self) -> str:
-                assert self.cnt < self.MAX, 'max number of identifier reached'
+        #     def __call__(self) -> str:
+        #         assert self.cnt < self.MAX, 'max number of identifier reached'
 
-                token = str(self.cnt).zfill(4)
-                self.cnt += 1
-                return token
+        #         token = str(self.cnt).zfill(4)
+        #         self.cnt += 1
+        #         return token
             
-        freshIdentifier = FreshIdGenerator()
+        # freshIdentifier = FreshIdGenerator()
         # initialize table with empty dependency columns
         for inst in insts:
             self.table.append(DependencyTableEntry(inst.opcode,
                                                    inst.rd,
-                                                   [],[],[],[], None ))
+                                                   [],[],[],[]))
 
         # helper function to find dependencies of a register in a certain range
-        def findDependencies(reg: NamedTuple, range: slice):
+        def findDependencies(reg: Reg, range: slice):
             ''' find dependencies of a register '''
             return next((i for i, entry in reversed(list(enumerate(self.table))[range]) if entry.dest == reg), None)
 
@@ -126,7 +127,7 @@ class DependencyTable:
     def to_csv(self, filename: str) -> None:
         ''' output dependency table to a csv file '''
         with open(filename, 'w', newline='') as csvfile:
-            fieldnames = ['id', 'opcode', 'dest', 'localDeps', 'interLoopDeps', 'loopInvariantDeps', 'postLoopDeps']
+            fieldnames = ['id', 'opcode', 'dest', 'localDeps', 'interLoopDeps', 'loopInvariantDeps', 'postLoopDeps','stage']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             writer.writeheader()
@@ -138,6 +139,6 @@ class DependencyTable:
                     'localDeps': [str(dep) for dep in entry.localDeps],
                     'interLoopDeps': [str(dep) for dep in entry.interLoopDeps],
                     'loopInvariantDeps': [str(dep) for dep in entry.loopInvariantDeps],
-                    'postLoopDeps': [str(dep) for dep in entry.postLoopDeps]
+                    'postLoopDeps': [str(dep) for dep in entry.postLoopDeps],
+                    'stage' : entry.stage,
                 })
-
