@@ -147,7 +147,7 @@ class PipelineScheduler:
         bb0_finished_cycle = schedule_single_bb(self.p.depTable.bb0, 0)
         if (bb1.stop - bb1.start) != 0:
             while not schedule_bb1():
-                print(f'II = {self.ii} is not enough, incrementing II')
+                # print(f'II = {self.ii} is not enough, incrementing II')
                 # revert previous changes to self.schedule and finished_cycle
                 self.schedule = self.schedule[ :bb0_finished_cycle]
                 finished_cycle[ :bb0_finished_cycle].extend([None] * (len(iCache) - bb0_finished_cycle))
@@ -367,7 +367,7 @@ class PipelineScheduler:
 
         
         bb1Schedule: list[Bundle] = []
-        print('ii:', self.ii, 'numStage:', numStage)
+        #print('ii:', self.ii, 'numStage:', numStage)
         for idx in range(self.ii):
             bundle = Bundle()
             for stage in range(numStage):
