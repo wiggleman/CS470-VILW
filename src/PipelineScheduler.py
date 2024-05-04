@@ -48,13 +48,13 @@ class PipelineScheduler:
     def ii(self) -> int:
         ''' compute lower bound of II '''        
         def quotient(t: tuple[int, int]) -> int:
-            print(ceil(t[0] / t[1]))
+            #print(ceil(t[0] / t[1]))
             return ceil(t[0] / t[1])
 
         tmp =  max(map(quotient,
                        zip(astuple(self.p.instCount),
                            astuple(self.p.exUnitCount))))
-        print('ii:', tmp)
+        #print('ii:', tmp)
         return tmp
     
     def ii(self):
@@ -218,20 +218,20 @@ class PipelineScheduler:
         ''' step 2.2 rename loop-invariant rs in BB1 '''
         freshReg = FreshRegGenerator()
         
-        loopInvariantProducers: set[int] = set()
-        # 2.2.1 traverse BB1 to obtain all loop-invariant dependency
+        loopInvariantProducers: dict[int, Reg] = {}
+        # 2.2.1 traverse BB1 to assign all loop-invariant dependency with fresh
+        #       static register
         for bundle in self.schedule[bb0_finished_cycle:bb1_finished_cycle]:
             for inst in bundle.insts:
                 for dep in depTable[inst.id].loopInvariantDeps:
-                    loopInvariantProducers.add(dep.producer_id)
-        # 2.2.2 rename producer rd of loop-invariant dependency according to
-        #       instruction order of BB0
+                    if dep.producer_id not in loopInvariantProducers:
+                        loopInvariantProducers[dep.producer_id] = freshReg()
+        # 2.2.2 rename producer rd of loop-invariant dependency in BB0
         for bundle in self.schedule[ :bb0_finished_cycle]:
             for inst in bundle.insts:
                 if inst.id in loopInvariantProducers:
-                    tmp = freshReg()
-                    inst.rd = tmp
-                    depTable[inst.id].renamedDest = tmp
+                    inst.rd = loopInvariantProducers[inst.id]
+                    depTable[inst.id].renamedDest = loopInvariantProducers[inst.id]                    
         ''' step 2.3 link operands to renamed registers '''
         # 2.3.1 loop invariant dependency: go back to BB1 to replace loop-
         #                                  invariant rs with renamed registers
@@ -346,11 +346,12 @@ class PipelineScheduler:
                 if (inst.rs2 is not None) and inst.rs2 == nullReg:
                     inst.rs2 = freshReg()
         ''' step 3 prepare loop predicate '''
+        ''' self.schedule & bb_finished_cycle are read only from here on'''
         bb0Schedule = deepcopy(self.schedule[ :bb0_finished_cycle])
         if bb1.stop - bb1.start == 0:
-            while (len(bb0Schedule[-1].insts) ==0 ):
+            while (len(bb0Schedule) > 0 and len(bb0Schedule[-1].insts) ==0 ):
                 bb0Schedule.pop()
-        print('BB0 finishes at', bb0_finished_cycle, 'length:', len(bb0Schedule))
+        #print('BB0 finishes at', bb0_finished_cycle, 'length:', len(bb0Schedule))
         movInst1 = _Instruction(opcode = 'mov', id = -1, rd = Reg(RegType.PREDICATE, 32), imm = 1)
         movInst2 = _Instruction(opcode = 'mov', id = -1, rd = Reg(RegType.EC, None), imm = numStage - 1)
         
@@ -371,12 +372,16 @@ class PipelineScheduler:
                 bundle.insts.extend(self.schedule[bb0_finished_cycle + stage * self.ii + idx].insts)
                 bundle.template.extend(self.schedule[bb0_finished_cycle + stage * self.ii + idx].template)
             bb1Schedule.append(bundle)
+
+        bb2Schedule = deepcopy(self.schedule[bb1_finished_cycle:bb2_finished_cycle])
+        while len(bb2Schedule) > 0 and len(bb2Schedule[-1].insts) == 0:
+            bb2Schedule.pop()
         
         self.finalSchedule = bb0Schedule
         if bb1.stop - bb1.start != 0:
             self.finalSchedule = self.finalSchedule \
-                           + bb1Schedule \
-                           + self.schedule[bb1_finished_cycle:bb2_finished_cycle]
+                               + bb1Schedule        \
+                               + bb2Schedule
 
     def sort(self) -> None:
         for bundle in self.schedule:
