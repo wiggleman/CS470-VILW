@@ -116,13 +116,23 @@ class SimpleScheduler:
                 if inst.rs1 is not None:
                     prodId = next((dep.producer_id for dep in deps if dep.consumer_reg == inst.rs1), None)
                     if prodId is None:
-                        inst.rs1 = nullReg
+                        # check if it has a interloop dependency
+                        prodId = next((dep.producer_id_interloop for dep in depTable[inst.id].interLoopDeps if dep.consumer_reg == inst.rs1), None)
+                        if prodId is None:
+                            inst.rs1 = nullReg
+                        else:
+                            inst.rs1 = depTable[prodId].renamedDest
                     else:
                         inst.rs1 = depTable[prodId].renamedDest
                 if inst.rs2 is not None:
                     prodId = next((dep.producer_id for dep in deps if dep.consumer_reg == inst.rs2), None)
                     if prodId is None:
-                        inst.rs2 = nullReg
+                        # check if it has a interloop dependency
+                        prodId = next((dep.producer_id_interloop for dep in depTable[inst.id].interLoopDeps if dep.consumer_reg == inst.rs2), None)
+                        if prodId is None:
+                            inst.rs2 = nullReg
+                        else:
+                            inst.rs2 = depTable[prodId].renamedDest
                     else:
                         inst.rs2 = depTable[prodId].renamedDest
 
@@ -134,6 +144,8 @@ class SimpleScheduler:
             movFinishedCycle = self.bb1_finished_cycle
             oldBb1FinishedCycle = self.bb1_finished_cycle # this is the starting point of all added mov instruction
             for dep in interLoopDeps:
+                if dep.producer_id is None:
+                    continue
                 moveInst = _Instruction(id = -1, opcode = "mov", 
                                         rd = depTable[dep.producer_id].renamedDest, 
                                         rs1 = depTable[dep.producer_id_interloop].renamedDest)

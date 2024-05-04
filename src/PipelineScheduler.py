@@ -280,6 +280,8 @@ class PipelineScheduler:
         ''' step 2.4 rename registers in BB0 and BB2 '''
         # 2.4.1 interloop dependency: ???
         for producer_id_interloop, producer_id in bb1bb0ProducerMap.items():
+            if producer_id is None:
+                continue
             producerCycle = finished_cycle[producer_id] - 3 if iCache[producer_id].opcode == 'mulu' else finished_cycle[producer_id] - 1
             flag = False
             for inst in self.schedule[producerCycle].insts:
